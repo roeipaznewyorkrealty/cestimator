@@ -1,0 +1,20 @@
+# Netlify configuration — NYC Plan Takeoff Estimator
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+# Plan-reading calls the Anthropic API, which can take >10s. Raise the function
+# timeout so it doesn't get killed mid-request (502). Netlify allows up to 26s
+# on the free tier via this setting.
+[functions]
+  node_bundler = "esbuild"
+
+[functions.analyze]
+  timeout = 26
+
+# Stable alias so the front-end always has a working path to the function.
+[[redirects]]
+  from = "/api/analyze"
+  to = "/.netlify/functions/analyze"
+  status = 200
+  force = true

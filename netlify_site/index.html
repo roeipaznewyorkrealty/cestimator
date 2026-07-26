@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NYC Plan Takeoff Estimator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=20260726-1715">
+</head>
+<body>
+<div class="app">
+
+<div class="header">
+  <div class="tb-top">
+    <svg class="logo" width="58" height="58" viewBox="0 0 58 58" fill="none" aria-label="P National Group">
+      <rect width="58" height="58" rx="13" fill="#0B2239"/>
+      <path d="M9 15h40M9 24h40M9 33h40M9 42h40M16 9v40M25 9v40M34 9v40M43 9v40" stroke="#1D6FB8" stroke-opacity=".28" stroke-width="1"/>
+      <path d="M18 45V14h11.5a9.5 9.5 0 0 1 0 19H24" stroke="#fff" stroke-width="3.4" stroke-linecap="square" stroke-linejoin="miter"/>
+      <path d="M24 21.5h5.5a4 4 0 0 1 0 8H24z" fill="#0B2239"/>
+      <path d="M33 40h14" stroke="#F2A900" stroke-width="3.6" stroke-linecap="round"/>
+      <path d="M36 44.5v-9M44 44.5v-9" stroke="#F2A900" stroke-width="2.4" stroke-linecap="round"/>
+    </svg>
+    <div class="tb-title">
+      <div class="brand">P National Group</div>
+      <h1>Plan Takeoff Estimator</h1>
+      <div class="rule"></div>
+      <p>Upload DOB-approved plans. Read the schedules, price the takeoff, cost the labor, and issue a client-ready proposal — built on current New York rates.</p>
+    </div>
+  </div>
+  <div class="tb-strip">
+    <div class="tb-cell"><div class="tb-k">Discipline</div><div class="tb-v">Hard-cost estimate</div></div>
+    <div class="tb-cell"><div class="tb-k">Basis</div><div class="tb-v">Plan schedules + takeoff factors</div></div>
+    <div class="tb-cell"><div class="tb-k">Pricing</div><div class="tb-v"><span class="amber">2025–26</span> NYC market</div></div>
+    <div class="tb-cell"><div class="tb-k">Accuracy / Build</div><div class="tb-v">± 20–30% · <span class="amber">v20260726-1715</span></div></div>
+  </div>
+</div>
+
+<div id="err-banner" class="note err hidden"></div>
+
+<div class="steps">
+  <div class="step-chip active" id="chip-1"><span class="n">1</span> Upload plans</div>
+  <div class="step-chip" id="chip-2"><span class="n">2</span> Verify extracted data</div>
+  <div class="step-chip" id="chip-3"><span class="n">3</span> Takeoff, labor &amp; estimate</div>
+</div>
+
+<!-- STEP 1: UPLOAD -->
+<div id="step-1">
+  <div class="section">
+    <div class="section-title">Upload building plans</div>
+    <div class="drop" id="drop">
+      <div class="big">📐</div>
+      <h3>Drop plan files here or click to browse</h3>
+      <p>PDF or images (PNG/JPG). For best results upload the key sheets: cover/zoning, floor plans, and schedules (window, door, MEP equipment).</p>
+      <input type="file" id="fileinput" multiple accept="application/pdf,image/*" style="display:none">
+    </div>
+    <div class="filelist" id="filelist"></div>
+    <div class="note" style="margin-top:12px">Large files are fine — each plan is automatically compressed in your browser as soon as you add it (you'll see "12 MB → 0.8 MB ✓"), so it stays under the upload limit. For best accuracy, include the schedule sheets (window, door, MEP). Compression needs an internet connection.</div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-primary" id="analyze-btn" onclick="analyzePlans()" disabled>Analyze plans with AI →</button>
+    <button class="btn" onclick="manualEntry()">Skip — enter metrics manually</button>
+    <button class="btn" onclick="loadExample()">Load 124 Washington example</button>
+    <label class="btn" style="cursor:pointer">Load saved estimate<input type="file" accept="application/json" style="display:none" onchange="loadTemplate(this)"></label>
+    <button class="btn" onclick="testBackend()">🔌 Test backend</button>
+  </div>
+
+  <div class="section" style="margin-top:1.25rem">
+    <div class="section-title">Or describe the project (no plans needed)</div>
+    <div class="card">
+      <div class="field">
+        <label>Project description <span class="hint">— e.g. "5-story new multifamily in Queens, 30,000 SF, 24 units, 2 elevators, R-2"</span></label>
+        <input id="prompt-text" placeholder="Describe the building, size, units, borough, work type…">
+      </div>
+      <div class="actions" style="margin-top:.75rem">
+        <button class="btn" onclick="estimateFromPrompt()">Generate estimate from description →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ANALYZING -->
+<div id="analyzing" class="hidden">
+  <div class="progress">
+    <span class="spinner" style="border-color:#534AB7;border-top-color:transparent"></span>
+    <div class="msg" id="analyze-msg">Reading your plans…</div>
+    <div class="sub" id="analyze-sub">Extracting building metrics, unit counts, and schedule quantities</div>
+  </div>
+</div>
+
+<!-- STEP 2: VERIFY -->
+<div id="step-2" class="hidden">
+  <div class="note" id="extract-note"><span class="ai-badge">Review</span> &nbsp;Review the values below and correct anything that’s off — every field is editable.</div>
+
+  <div class="section">
+    <div class="section-title">Project identification</div>
+    <div class="card">
+      <div class="grid3">
+        <div class="field ai"><label>Project name / address</label><input id="m-name"></div>
+        <div class="field ai"><label>DOB Job #</label><input id="m-job"></div>
+        <div class="field"><label>Borough</label>
+          <select id="m-borough" onchange="recalc()">
+            <option value="1.0">Manhattan</option><option value="0.92">Brooklyn</option>
+            <option value="0.90">Queens</option><option value="0.86">Bronx</option><option value="0.84">Staten Island</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Building metrics</div>
+    <div class="card">
+      <div class="grid4">
+        <div class="field ai"><label>Total GFA (SF) <span class="hint">— auto-derives from footprint × floors if blank</span></label><input id="m-gfa" type="number" oninput="recalc()"></div>
+        <div class="field ai"><label>Net residential SF</label><input id="m-nsf" type="number" oninput="recalc()"></div>
+        <div class="field ai"><label>Footprint / floor (SF)</label><input id="m-footprint" type="number" oninput="recalc()"></div>
+        <div class="field ai"><label># Floors</label><input id="m-floors" type="number" oninput="recalc()"></div>
+        <div class="field ai"><label># Dwelling units</label><input id="m-units" type="number" oninput="recalc()"></div>
+        <div class="field ai"><label>Floor-to-floor (ft)</label><input id="m-f2f" type="number" step="0.5" oninput="recalc()"></div>
+        <div class="field ai"><label>Perimeter (LF)</label><input id="m-perim" type="number" oninput="recalc()"></div>
+        <div class="field"><label>Cellar?</label><select id="m-cellar" onchange="recalc()"><option value="1">Yes</option><option value="0">No</option></select></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Type &amp; scope</div>
+    <div class="card">
+      <div class="grid4">
+        <div class="field ai"><label>Work type</label>
+          <select id="m-worktype" onchange="recalc()">
+            <option value="new">New construction</option>
+            <option value="conversion">Adaptive reuse / conversion</option>
+            <option value="gut">Full gut renovation</option>
+            <option value="partial">Partial renovation</option>
+          </select>
+        </div>
+        <div class="field ai"><label>Construction type</label>
+          <select id="m-ctype" onchange="recalc()">
+            <option value="1.15">I-A fireproof</option><option value="1.10">I-B</option>
+            <option value="1.0">II-A</option><option value="0.96">II-B</option>
+            <option value="0.93">III-A masonry/timber</option><option value="0.90">III-B</option>
+            <option value="0.85">V wood frame</option>
+          </select>
+        </div>
+        <div class="field ai"><label>Occupancy</label>
+          <select id="m-occ" onchange="recalc()">
+            <option value="1.0">R-2 multifamily</option><option value="0.88">R-3</option>
+            <option value="1.0">B office</option><option value="1.25">A assembly</option>
+            <option value="0.92">M retail</option><option value="1.42">I institutional</option>
+          </select>
+        </div>
+        <div class="field"><label>Inner court / curtain wall?</label><select id="m-court" onchange="recalc()"><option value="0">No</option><option value="1">Yes</option></select></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Schedule counts (from plan schedules)</div>
+    <div class="card">
+      <div class="grid4">
+        <div class="field ai"><label>Windows (total)</label><input id="m-windows" type="number" oninput="recalc()"></div>
+        <div class="field ai"><label>Entry doors</label><input id="m-doors-entry" type="number" oninput="recalc()"></div>
+        <div class="field ai"><label>Stair/fire doors</label><input id="m-doors-stair" type="number" oninput="recalc()"></div>
+        <div class="field ai"><label>Interior doors</label><input id="m-doors-int" type="number" oninput="recalc()"></div>
+        <div class="field ai"><label>HVAC condensers (roof)</label><input id="m-hvac-cu" type="number" oninput="recalc()"></div>
+        <div class="field ai"><label>HVAC indoor units</label><input id="m-hvac-ah" type="number" oninput="recalc()"></div>
+        <div class="field ai"><label>Exhaust fans (kit+bath)</label><input id="m-exhaust" type="number" oninput="recalc()"></div>
+        <div class="field ai"><label>Elevators</label><input id="m-elev" type="number" oninput="recalc()"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn" onclick="backToUpload()">← Re-upload</button>
+    <button class="btn btn-primary" onclick="goToResults()">Run takeoff →</button>
+  </div>
+</div>
+
+<!-- STEP 3: RESULTS -->
+<div id="step-3" class="hidden">
+  <div class="summary-grid">
+    <div class="metric"><div class="metric-label">Total hard cost</div><div class="metric-value" id="s-total">—</div><div class="metric-sub">incl. GC O&amp;P + contingency</div></div>
+    <div class="metric"><div class="metric-label">Cost / SF (GFA)</div><div class="metric-value" id="s-psf">—</div><div class="metric-sub" id="s-bench">—</div></div>
+    <div class="metric"><div class="metric-label">Cost / unit</div><div class="metric-value" id="s-unit">—</div><div class="metric-sub" id="s-units">—</div></div>
+    <div class="metric"><div class="metric-label">Line items</div><div class="metric-value" id="s-lines">—</div><div class="metric-sub">across divisions</div></div>
+  </div>
+
+  <div class="actions" style="margin-top:0;margin-bottom:1rem">
+    <button class="btn btn-green" onclick="exportExcel()">⬇ Download Excel takeoff</button>
+    <button class="btn" onclick="backToVerify()">← Adjust inputs</button>
+    <button class="btn btn-primary" onclick="buildProposal()">📄 Client proposal</button>
+    <button class="btn" onclick="saveTemplate()">💾 Save estimate</button>
+    <button class="btn" onclick="resetEstimate()">↺ Reset edits</button>
+    <button class="btn" onclick="window.print()">🖨 Print</button>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Material quantity takeoff</div>
+    <div style="overflow-x:auto">
+      <table id="takeoff-table">
+        <thead><tr>
+          <th>Material / work item</th><th>Quantity basis</th>
+          <th class="num">Qty</th><th>Unit</th><th class="num">Unit $</th>
+          <th class="num">Material $</th><th class="num">Labor $</th><th class="num">Extended $</th>
+        </tr></thead>
+        <tbody id="takeoff-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:.85rem">
+    <div class="section-title" style="margin-bottom:.6rem">Add a line item</div>
+    <div class="grid4">
+      <div class="field"><label>Division</label>
+        <select id="cr-div">
+          <option>02 · Demolition</option><option>04 · Masonry</option><option>05 · Metals</option>
+          <option>06 · Wood &amp; Timber</option><option>07 · Thermal &amp; Moisture</option>
+          <option>08 · Openings (Doors &amp; Windows)</option><option>09 · Finishes</option>
+          <option>11 · Kitchens, Baths &amp; Appliances</option><option>14 · Conveying</option>
+          <option>21/22 · Plumbing &amp; Fire Protection</option><option>23 · HVAC / Mechanical</option>
+          <option>26 · Electrical</option><option selected>99 · Other / Custom</option>
+        </select>
+      </div>
+      <div class="field"><label>Description</label><input id="cr-name" placeholder="e.g. Rooftop deck"></div>
+      <div class="field"><label>Qty</label><input id="cr-qty" type="number" step="any"></div>
+      <div class="field"><label>Unit</label>
+        <select id="cr-unit"><option>LS</option><option>SF</option><option>LF</option><option>EA</option><option>CY</option></select>
+      </div>
+      <div class="field"><label>Unit $</label><input id="cr-price" type="number" step="any"></div>
+      <div class="field"><label>Man-hrs / unit <span class="hint">optional</span></label><input id="cr-mh" type="number" step="any"></div>
+      <div class="field"><label>Trade</label>
+        <select id="cr-trade">
+          <option value="laborer">Laborer</option><option value="carpenter">Carpenter</option>
+          <option value="concrete">Concrete</option><option value="mason">Mason</option>
+          <option value="drywall">Drywall</option><option value="painter">Painter</option>
+          <option value="plumber">Plumber</option><option value="electrician">Electrician</option>
+          <option value="hvac">HVAC</option><option value="roofer">Roofer</option>
+        </select>
+      </div>
+      <div class="field"><label>&nbsp;</label><button class="btn btn-primary" onclick="addCustomRow()">+ Add line</button></div>
+    </div>
+    <div class="note" style="margin-top:.6rem">Every quantity and unit rate in the table above is editable — type over it and totals update instantly. Use the – button to exclude a line from the estimate, or × to delete one you added.</div>
+  </div>
+
+  <div class="totals">
+    <div class="r"><span class="l">Material</span><span class="v" id="t-mat">—</span></div>
+    <div class="r"><span class="l">Labor (loaded, embedded in prices)</span><span class="v" id="t-lab">—</span></div>
+    <div class="r"><span class="l">Direct work subtotal</span><span class="v" id="t-direct">—</span></div>
+    <div class="r"><span class="l">General conditions (<span id="gc-l">8</span>%)</span><span class="v" id="t-gc">—</span></div>
+    <div class="r"><span class="l">GC overhead &amp; profit (<span id="op-l">12</span>%)</span><span class="v" id="t-op">—</span></div>
+    <div class="cont-row">
+      <span class="l">GC %</span><input id="gc-pct" type="number" value="8" oninput="recalc()">
+      <span class="l" style="margin-left:12px">O&amp;P %</span><input id="op-pct" type="number" value="12" oninput="recalc()">
+      <span class="l" style="margin-left:12px">Contingency %</span><input id="cont-pct" type="number" value="15" oninput="recalc()">
+      <span class="v" id="t-cont" style="margin-left:auto">—</span>
+    </div>
+    <div class="r big"><span class="l">Total estimated hard cost</span><span class="v" id="t-grand">—</span></div>
+    <div class="cont-row">
+      <span class="l">Target margin %</span><input id="margin-pct" type="number" value="0" oninput="recalc()">
+      <span class="l">Sell price at <span id="margin-l">0</span>% margin</span>
+      <span class="v" id="t-sell" style="margin-left:auto">—</span>
+    </div>
+  </div>
+
+  <div class="note warn" style="margin-top:1rem">Accuracy ±20–30%, pre-bid. Items from plan schedules (windows, doors, HVAC equipment, elevators) are counted; area/length materials (GWB, partitions, paint, insulation) are derived using standard takeoff factors. Excludes soft costs (design fees, DOB filing/inspection fees, financing, insurance, FF&amp;E). Verify against dimensioned drawings before bid.</div>
+
+  <!-- SCOPE OF WORK: LABOR & SCHEDULE -->
+  <div class="section" style="margin-top:1.75rem">
+    <div class="section-title">Scope of work · labor &amp; schedule</div>
+
+    <div class="summary-grid">
+      <div class="metric"><div class="metric-label">Total labor</div><div class="metric-value" id="l-hours">—</div><div class="metric-sub">man-hours</div></div>
+      <div class="metric"><div class="metric-label">Loaded labor cost</div><div class="metric-value" id="l-cost">—</div><div class="metric-sub">embedded in costs above</div></div>
+      <div class="metric"><div class="metric-label">Project duration</div><div class="metric-value" id="l-days">—</div><div class="metric-sub" id="l-cal">—</div></div>
+      <div class="metric">
+        <div class="metric-label">Labor rate adj.</div>
+        <input id="labor-mult" type="number" step="0.05" value="1.0" oninput="recalc()" style="width:100%;padding:6px 9px;font-size:18px;font-weight:700;border:1px solid #cdc7f0;border-radius:8px;background:#faf9ff;font-family:inherit;outline:none">
+        <div class="metric-sub">× NYC loaded rates</div>
+      </div>
+    </div>
+
+    <div style="overflow-x:auto">
+      <table id="labor-table">
+        <thead><tr>
+          <th>Division / work package</th>
+          <th class="num">Labor hrs</th><th class="num">Crew</th>
+          <th class="num">Work-days</th><th class="num">Labor $</th><th style="width:190px">Timeline</th>
+        </tr></thead>
+        <tbody id="labor-body"></tbody>
+      </table>
+    </div>
+
+    <div class="section" style="margin-top:1.5rem">
+      <div class="section-title">Trade wage table <span style="font-weight:400;text-transform:none;letter-spacing:0">— loaded $/hr, editable</span></div>
+      <div style="overflow-x:auto">
+        <table id="wage-table">
+          <thead><tr><th>Trade</th><th class="num">Loaded rate</th><th>Basis</th></tr></thead>
+          <tbody id="wage-body"></tbody>
+        </table>
+      </div>
+      <div class="actions" style="margin-top:.6rem">
+        <button class="btn" onclick="resetWages()">↺ Reset wages to NYC defaults</button>
+      </div>
+      <div class="note" style="margin-top:.6rem">These are fully-loaded hourly rates (wage + burden). Editing a rate re-prices that trade's labor everywhere it appears and updates the material/labor split. Rates are saved with "Save estimate".</div>
+    </div>
+
+    <div class="note" style="margin-top:1rem">Man-hours = estimate-grade productivity factors × takeoff quantities. Crew sizes and phase durations are planning-level: trades within a phase run concurrently, so each <strong>phase duration is the longest trade in that phase</strong>, and the project duration is the sum across phases. The labor dollars shown are the loaded crew cost <strong>already contained within the installed unit prices above</strong> — they are not added on top of the hard-cost total. Adjust the labor-rate multiplier for tighter local wage data.</div>
+  </div>
+</div>
+
+<!-- STEP 4: CLIENT PROPOSAL -->
+<div id="step-4" class="hidden">
+  <div class="actions no-print" style="margin-bottom:1rem">
+    <button class="btn" onclick="backFromProposal()">← Back to estimate</button>
+    <button class="btn btn-green" onclick="window.print()">🖨 Print / Save as PDF</button>
+  </div>
+  <div id="proposal" class="proposal"></div>
+</div>
+
+</div>
+<script>
+window.addEventListener('error',function(e){
+  var el=document.getElementById('err-banner');
+  if(el){ el.textContent='Script error: '+(e.message||'unknown')+'  — please report this.'; el.classList.remove('hidden'); }
+});
+</script>
+<script src="app.js?v=20260726-1715"></script>
+</body>
+</html>
