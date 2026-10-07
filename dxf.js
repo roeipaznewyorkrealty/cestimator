@@ -130,8 +130,10 @@
     box.innerHTML = '<div id="dxf-box"><div style="display:flex;gap:10px;align-items:center"><strong>📁 Import CAD (DWG / DXF)</strong><input type="file" id="dxf-file" accept=".dxf,.dwg"><span style="flex:1"></span><button id="dxf-close">Close</button></div><div id="dxf-body" style="margin-top:8px">Choose a .dxf or .dwg file. DWG files are read directly in your browser (nothing is uploaded).</div></div>';
     document.body.appendChild(box);
     $('dxf-close').onclick = function () { box.classList.remove('open'); };
-    $('dxf-file').onchange = function () {
-      var f = this.files[0]; if (!f) return;
+    $('dxf-file').onchange = function () { if (this.files[0]) handleFile(this.files[0]); };
+  }
+  function handleFile(f) {
+    {
       var isDwg = /\.dwg$/i.test(f.name);
       $('dxf-body').innerHTML = isDwg ? 'Reading DWG… (first time loads a ~3 MB reader)' : 'Reading…';
       var rd = new FileReader();
@@ -144,7 +146,7 @@
         } catch (e) { $('dxf-body').innerHTML = '<b style="color:#b00">Could not read that file: ' + esc(e.message || e) + '</b>' + (isDwg ? '<div>If this DWG is very new or unusual, save it as DXF (AutoCAD: Save As → DXF) and try again.</div>' : ''); }
       };
       if (isDwg) rd.readAsArrayBuffer(f); else rd.readAsText(f);
-    };
+    }
   }
 
   function ftOf(l, units, dbl) { return l.units * units / (dbl ? 2 : 1); }
@@ -210,6 +212,7 @@
   }
 
   function open() { build(); box.classList.add('open'); }
+  root.openCadFile = function (f) { build(); box.classList.add('open'); handleFile(f); };
   function inject() {
     if ($('dxf-btn')) return;
     var a = $('wall-measure-btn') || document.querySelector('button[onclick="addFloorRow()"]');

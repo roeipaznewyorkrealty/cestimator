@@ -20,6 +20,9 @@ function addFiles(list){
     const arr=Array.from(list||[]);
     if(!arr.length) return;
     for(const f of arr){
+      if(/\.(dwg|dxf)$/i.test(f.name)){            // CAD drawings are read by dxf.js after the PDF analysis
+        window._pendingCad=f; renderFiles(); continue;
+      }
       const entry={file:f,name:f.name,size:f.size,images:null,compBytes:0,status:'pending',msg:''};
       files.push(entry);
       compressEntry(entry).then(renderFiles).catch(err=>{
@@ -52,6 +55,7 @@ async function compressEntry(entry){
 
 function renderFiles(){
   const el = document.getElementById('filelist');
+  if(window._pendingCad){ let c=document.getElementById('cad-pending'); if(!c){ c=document.createElement('div'); c.id='cad-pending'; c.style.cssText='margin:6px 0;font-size:13px'; el.parentNode.insertBefore(c,el.nextSibling); } c.innerHTML='📁 CAD file added: <b>'+esc2(window._pendingCad.name)+'</b> — will be read for exact wall lengths after the plan analysis (also upload the PDF plans). <a href="#" onclick="window._pendingCad=null;document.getElementById(\'cad-pending\').remove();return false">remove</a>'; }
   el.innerHTML = files.map((e,i)=>{
     const mb = (e.size/1048576).toFixed(1);
     let tail;
@@ -401,7 +405,7 @@ async function analyzePlans(){
       exhaustFans:'Exhaust fans',footprint:'Footprint/floor',floors:'# Floors',gfa:'Total GFA'};
     Object.keys(KEYLBL).forEach(k=>{ if(typeof merged[k]==='number'&&merged[k]>0){ const i=missing.indexOf(KEYLBL[k]); if(i>=0) missing.splice(i,1); } });
     fillMetrics(merged);
-    try{ if(window.autoWalls) setTimeout(function(){ window.autoWalls(); },300); }catch(e){}
+    try{ if(window._pendingCad&&window.openCadFile){ const cf=window._pendingCad; setTimeout(function(){ window.openCadFile(cf); },400); } else if(window.autoWalls) setTimeout(function(){ window.autoWalls(); },300); }catch(e){}
     showExtractNote(results.length, files.length, missing, assumed);
     track('analysis_success',{pages_read:results.length});
     hide('analyzing'); show('step-2'); setChip(2);
