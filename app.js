@@ -811,6 +811,22 @@ function wallQuantities(m,wallht){
   return est;
 }
 
+/* Ground-floor concrete slab. Quantity = total SF of the ground floor:
+   the measured "Floor 1" gross area when it was entered in the per-floor
+   table, otherwise the building footprint. */
+function groundFloorSF(m){
+  try{
+    const r=floorRows.find(r=>/^(floor|level)\s*1$|^ground/i.test(String(r.name||'').trim()));
+    if(r&&r.gross>0) return r.gross;
+  }catch(e){}
+  return m.footprint||0;
+}
+function groundSlabItem(m){
+  const sf=groundFloorSF(m);
+  return {n:'Concrete floor — ground floor slab', basis:'Ground floor total SF ('+Math.round(sf).toLocaleString('en-US')+' SF)',
+    qty:sf, u:'SF', p:14, mh:0.08, trade:'concrete', src:'5" slab on grade, WWM/rebar, vapor barrier, finish'};
+}
+
 /* Excavation, SOE, underpinning and piles. New construction always gets
    excavation + auto-defaulted SOE/underpinning; existing buildings (cellar
    lowering, additions) only get the lines the user or the plans set. */
@@ -874,6 +890,7 @@ function buildTakeoff(m){
       ...excavationItems(m),
       {n:'Foundation (footings, mat, walls)', basis:'Footprint SF · mandatory $45/SF', qty:m.footprint, u:'SF', p:45, fixed:true, mh:0.30, trade:'concrete', src:'Mandatory $45/SF (fixed)'},
       {n:'Below-grade waterproofing', basis:'Footprint SF', qty:m.footprint, u:'SF', p:14, mh:0.05, trade:'laborer', src:'Foundation walls+slab'},
+      groundSlabItem(m),
       {n:'Utility connections', basis:'Lump', qty:1, u:'LS', p:185000, mh:350, trade:'laborer', src:'ConEd/DEP taps'},
     ]});
     divs.push({div:'00b · Superstructure', items:[
@@ -886,6 +903,7 @@ function buildTakeoff(m){
   }else{
     const exc=excavationItems(m,true);
     if(exc.length) divs.push({div:'00 · Excavation & Foundation Support', items:exc});
+    divs.push({div:'03 · Concrete', items:[ groundSlabItem(m) ]});
     divs.push({div:'02 · Demolition', items:[
       {n:'Selective interior demolition', basis:'Net area × 40%', qty:m.nsf*0.40, u:'SF', p:9, mh:0.07, trade:'laborer', src:'Partial demo, factored'},
       {n:'Debris removal & disposal', basis:'1 CY / 35 SF demo', qty:(m.nsf*0.40)/35, u:'CY', p:95, mh:0.45, trade:'laborer', src:'NYC C&D disposal'},
@@ -1139,6 +1157,7 @@ function recalc(){
 // else is already priced at market. Location factor applies to every line.
 const MARKET_PRICE={
   'Foundation (footings, mat, walls)':70,
+  'Concrete floor — ground floor slab':18,
   'Concrete superstructure — frame, slabs & roof deck':65,
   'Plumbing systems (units, risers, common, DHW)':35,
   'Fire sprinkler (NFPA 13R)':9,
@@ -2085,6 +2104,7 @@ const SPEC_CATALOG={
   'Underpinning of adjacent buildings':{mat:'Cast-in-place concrete underpinning pits, dry-packed',desc:'Extends neighboring building foundations below the new excavation, dug and poured in short sequenced sections.',kind:'work',photo:'concrete underpinning pits beneath an old brick party wall next to an excavation'},
   'Piles (steel pipe / helical, installed)':{mat:'Steel pipe or helical piles, galvanized, with pile caps',desc:'Deep foundation elements that carry building loads down to competent soil or rock.',kind:'work',photo:'a drill rig installing steel pipe piles on a small urban construction site'},
   'Foundation (footings, mat, walls)':{mat:'Reinforced concrete, 4,000–5,000 psi, rebar',desc:'Footings, mat slab and cellar walls that carry the building to the ground.',kind:'work',photo:'reinforced concrete foundation walls and footing with rebar and formwork'},
+  'Concrete floor — ground floor slab':{mat:'5" reinforced concrete slab on grade, 4,000 psi, WWM/rebar, vapor barrier, troweled finish',desc:'The ground-floor concrete slab, priced on the total square footage of the ground floor.',kind:'work',photo:'workers finishing a freshly poured reinforced concrete ground floor slab with a power trowel'},
   'Below-grade waterproofing':{mat:'Sheet or fluid-applied membrane with drainage board',desc:'Keeps groundwater out of the cellar walls and slab.',kind:'work',photo:'black waterproofing membrane and dimpled drainage board on a concrete foundation wall'},
   'Utility connections':{mat:'Water, sewer, gas and electric service taps',desc:'New service connections from the street mains (DEP water/sewer, Con Ed gas/electric).',kind:'work',photo:'utility trench from a Brooklyn street to a building with new water and sewer pipes'},
   'Concrete superstructure — frame, slabs & roof deck':{mat:'Reinforced concrete flat-plate slabs and columns',desc:'The building frame: columns, floor slabs and roof deck.',kind:'work',photo:'mid-rise reinforced concrete frame under construction with flat slabs and columns'},
